@@ -17,12 +17,20 @@ export function AuthProvider({ children }) {
       try {
         // Restore token from localStorage if it exists
         const token = localStorage.getItem("access_token");
+        console.log("📝 Token from localStorage:", token ? token.substring(0, 20) + "..." : "NOT FOUND");
+
         if (token) {
           axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+          console.log("✅ Authorization header set from localStorage token");
+        } else {
+          console.log("⚠️ No token in localStorage, skipping auth header");
         }
+
         const { data } = await axios.get(`${API}/auth/me`);
+        console.log("✅ Auth check passed, user:", data);
         setUser(data);
-      } catch {
+      } catch (error) {
+        console.error("❌ Auth check failed:", error.response?.status, error.response?.data);
         // Clear invalid token
         localStorage.removeItem("access_token");
         delete axios.defaults.headers.common["Authorization"];
@@ -40,6 +48,9 @@ export function AuthProvider({ children }) {
       localStorage.setItem("access_token", data.access_token);
       // Set the token in axios default header
       axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
+      console.log("✅ Token stored in localStorage and axios header set:", data.access_token.substring(0, 20) + "...");
+    } else {
+      console.warn("⚠️ Login response missing access_token field:", data);
     }
     setUser(data);
     return data;
