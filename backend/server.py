@@ -553,6 +553,13 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     if user["role"] not in ["admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    global storage_key
+    if not EMERGENT_KEY or not storage_key:
+        raise HTTPException(
+            status_code=400,
+            detail="File storage is not configured. File upload is disabled. Set EMERGENT_LLM_KEY to enable uploads."
+        )
+    
     ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
     path = f"{APP_NAME}/uploads/{uuid.uuid4()}.{ext}"
     data = await file.read()
