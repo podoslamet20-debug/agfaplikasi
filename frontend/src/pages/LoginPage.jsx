@@ -116,14 +116,6 @@ export default function LoginPage() {
               {loading ? "Memuat..." : "Login"}
             </Button>
           </form>
-          <div className="mt-6 pt-6 border-t border-[#E5E5E5]">
-            <p className="text-xs text-[#5C5C5C] mb-2 font-medium">Akun Demo:</p>
-            <div className="text-xs text-[#5C5C5C] space-y-1">
-              <div>Admin: admin@agfdata.com / admin123</div>
-              <div>Staff: staff@agfdata.com / staff123</div>
-              <div>Tamu: tamu@agfdata.com / tamu123</div>
-            </div>
-          </div>
         </Card>
       </div>
     </div>
