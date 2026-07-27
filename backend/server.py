@@ -338,6 +338,9 @@ async def startup_event():
         await db.barang.create_index("nama_barang")
         await db.po.create_index("no_po", unique=True)
         
+        # Reset demo users on each startup (for dev/testing)
+        await db.users.delete_many({})
+
         # Seed admin user
         admin_email = os.environ.get("ADMIN_EMAIL", "admin@agfdata.com")
         admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
