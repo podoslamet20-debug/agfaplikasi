@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import { Card } from "@/components/ui/card";
@@ -30,19 +30,18 @@ export default function DatabaseBarang() {
     pengrajin_list: [],
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API}/barang${search ? `?search=${search}` : ""}`);
       setItems(data);
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [API, search]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     load();
-  }, [search]);
+  }, [load]);
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
