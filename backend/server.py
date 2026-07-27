@@ -333,57 +333,65 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"Storage init failed, continuing startup without storage: {e}")
         
-        # Create indexes
-        await db.users.create_index("email", unique=True)
-        await db.barang.create_index("nama_barang")
-        await db.po.create_index("no_po", unique=True)
-        
-        # Seed admin user
+        # Create indexes (non-critical: don't block startup if index creation fails,
+        # e.g. due to a pre-existing duplicate-email conflict)
+        try:
+            await db.users.create_index("email", unique=True)
+        except Exception as e:
+            logger.error(f"Failed to create unique index on users.email: {e}")
+        try:
+            await db.barang.create_index("nama_barang")
+        except Exception as e:
+            logger.error(f"Failed to create index on barang.nama_barang: {e}")
+        try:
+            await db.po.create_index("no_po", unique=True)
+        except Exception as e:
+            logger.error(f"Failed to create unique index on po.no_po: {e}")
+
+        # Seed demo users
+        logger.info("Attempting to seed demo users...")
+
         admin_email = os.environ.get("ADMIN_EMAIL", "admin@agfdata.com")
         admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-        existing_admin = await db.users.find_one({"email": admin_email})
-        
-        if not existing_admin:
-            hashed = hash_password(admin_password)
-            await db.users.insert_one({
-                "email": admin_email,
-                "password_hash": hashed,
-                "name": "Admin",
-                "role": "admin",
-                "created_at": datetime.now(timezone.utc)
-            })
-            logger.info(f"Admin user created: {admin_email}")
-        
-        # Create test users
-        staff_email = "staff@agfdata.com"
-        if not await db.users.find_one({"email": staff_email}):
-            await db.users.insert_one({
-                "email": staff_email,
-                "password_hash": hash_password("staff123"),
-                "name": "Staff User",
-                "role": "staff",
-                "created_at": datetime.now(timezone.utc)
-            })
-        
-        guest_email = "tamu@agfdata.com"
-        if not await db.users.find_one({"email": guest_email}):
-            await db.users.insert_one({
-                "email": guest_email,
-                "password_hash": hash_password("tamu123"),
-                "name": "Tamu User",
-                "role": "guest",
-                "created_at": datetime.now(timezone.utc)
-            })
-        
+
+        demo_users = [
+            {"email": admin_email, "password": admin_password, "name": "Admin", "role": "admin"},
+            {"email": "staff@agfdata.com", "password": "staff123", "name": "Staff User", "role": "staff"},
+            {"email": "tamu@agfdata.com", "password": "tamu123", "name": "Tamu User", "role": "guest"},
+        ]
+
+        for demo_user in demo_users:
+            email = demo_user["email"]
+            try:
+                logger.info(f"Creating user: {email}")
+                # Remove any existing user with this email first to avoid unique
+                # index conflicts silently blocking (re)creation.
+                await db.users.delete_many({"email": email})
+                await db.users.insert_one({
+                    "email": email,
+                    "password_hash": hash_password(demo_user["password"]),
+                    "name": demo_user["name"],
+                    "role": demo_user["role"],
+                    "created_at": datetime.now(timezone.utc)
+                })
+                logger.info(f"User created: {email}")
+            except Exception as e:
+                logger.error(f"Failed to create user {email}: {e}")
+
+        logger.info("Demo users seeded successfully")
+
         # Write credentials to file
-        os.makedirs("/app/memory", exist_ok=True)
-        with open("/app/memory/test_credentials.md", "w") as f:
-            f.write("# AGFDATA Test Credentials\n\n")
-            f.write(f"## Admin\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: admin\n\n")
-            f.write(f"## Staff\n- Email: staff@agfdata.com\n- Password: staff123\n- Role: staff\n\n")
-            f.write(f"## Guest\n- Email: tamu@agfdata.com\n- Password: tamu123\n- Role: guest\n\n")
-            f.write("## Endpoints\n- POST /api/auth/login\n- GET /api/auth/me\n- POST /api/auth/logout\n")
-        
+        try:
+            os.makedirs("/app/memory", exist_ok=True)
+            with open("/app/memory/test_credentials.md", "w") as f:
+                f.write("# AGFDATA Test Credentials\n\n")
+                f.write(f"## Admin\n- Email: {admin_email}\n- Password: {admin_password}\n- Role: admin\n\n")
+                f.write(f"## Staff\n- Email: staff@agfdata.com\n- Password: staff123\n- Role: staff\n\n")
+                f.write(f"## Guest\n- Email: tamu@agfdata.com\n- Password: tamu123\n- Role: guest\n\n")
+                f.write("## Endpoints\n- POST /api/auth/login\n- GET /api/auth/me\n- POST /api/auth/logout\n")
+        except Exception as e:
+            logger.warning(f"Failed to write test credentials file: {e}")
+
         # Migration: convert legacy cumulative progres docs to stage entries.
         try:
             legacy_count = await db.progres.count_documents({"stage": {"$exists": False}, "$or": [{"grinda": {"$gt": 0}}, {"servis": {"$gt": 0}}, {"finishing": {"$gt": 0}}, {"packing": {"$gt": 0}}]})
@@ -481,6 +489,26 @@ async def startup_event():
         logger.info("Startup completed successfully")
     except Exception as e:
         logger.error(f"Startup error: {e}")
+
+# ===== Health Check =====
+@api_router.get("/health")
+async def health_check():
+    try:
+        user_count = await db.users.count_documents({})
+        emails = [u["email"] async for u in db.users.find({}, {"email": 1})]
+        return {
+            "status": "ok",
+            "database": "connected",
+            "user_count": user_count,
+            "user_emails": emails,
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "status": "error",
+            "database": "disconnected",
+            "detail": str(e),
+        }
 
 # ===== Auth Routes =====
 @api_router.post("/auth/login")
