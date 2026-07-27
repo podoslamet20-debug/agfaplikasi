@@ -64,6 +64,7 @@
     "zod": "3.24.4"
   },
   "scripts": {
+    "start": "npx -y http-server ./build -p 3000 --host 0.0.0.0",
     "build": "craco build",
     "test": "craco test"
   },
