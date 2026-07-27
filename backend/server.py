@@ -146,15 +146,22 @@ def init_storage():
     global storage_key
     if storage_key:
         return storage_key
+    if not EMERGENT_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="File storage is not configured (EMERGENT_LLM_KEY missing). File uploads/downloads are unavailable."
+        )
     try:
         resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
         resp.raise_for_status()
         storage_key = resp.json()["storage_key"]
         logger.info("Storage initialized successfully")
         return storage_key
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
-        raise
+        raise HTTPException(status_code=503, detail="File storage is currently unavailable. Please try again later.")
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
     key = init_storage()
@@ -316,9 +323,15 @@ PREV_STAGE = {"grinda": None, "servis": "grinda", "finishing": "servis", "packin
 @app.on_event("startup")
 async def startup_event():
     try:
-        # Initialize storage
-        init_storage()
-        logger.info("Storage initialized")
+        # Initialize storage (non-critical: don't block startup if this fails)
+        try:
+            if not EMERGENT_KEY:
+                logger.warning("EMERGENT_LLM_KEY not set. Skipping storage init; file uploads will be disabled.")
+            else:
+                init_storage()
+                logger.info("Storage initialized")
+        except Exception as e:
+            logger.warning(f"Storage init failed, continuing startup without storage: {e}")
         
         # Create indexes
         await db.users.create_index("email", unique=True)
