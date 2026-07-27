@@ -504,10 +504,6 @@ async def login(request: LoginRequest, req: Request, response: Response):
     
     user_id = str(user["_id"])
     token = create_access_token(user_id, user["email"], user["role"])
-    response.set_cookie(
-        key="access_token", value=token, httponly=True, secure=True,
-        samesite="none", max_age=86400, path="/"
-    )
     
     # Log successful login
     try:
@@ -521,7 +517,13 @@ async def login(request: LoginRequest, req: Request, response: Response):
         })
     except Exception: pass
     
-    return {"_id": user_id, "email": user["email"], "name": user["name"], "role": user["role"]}
+    return {
+        "_id": user_id,
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "access_token": token,
+    }
 
 @api_router.get("/auth/me")
 async def get_me(request: Request):
@@ -544,7 +546,6 @@ async def logout(request: Request, response: Response):
                 "ip": request.client.host if request.client else "",
             })
     except Exception: pass
-    response.delete_cookie("access_token", path="/")
     return {"message": "Logged out successfully"}
 
 # ===== File Upload =====
