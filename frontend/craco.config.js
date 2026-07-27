@@ -129,7 +129,15 @@ webpackConfig.devServer = (devServerConfig) => {
 };
 
 // Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
-if (isDevServer) {
+// Only load this during the actual dev server (`craco start`), never during a production
+// build (`craco build`). withVisualEdits pulls in React Refresh, which must not end up in
+// the production bundle. We check the craco CLI command (process.argv) in addition to
+// NODE_ENV so that `craco build` is always excluded, even if NODE_ENV isn't set to
+// "production" for some reason.
+const isCracoStart = process.argv.some((arg) => arg.includes("start"));
+const isProductionBuild = process.env.NODE_ENV === "production" || !isCracoStart;
+
+if (isDevServer && !isProductionBuild) {
   try {
     const { withVisualEdits } = require("@emergentbase/visual-edits/craco");
     webpackConfig = withVisualEdits(webpackConfig);
