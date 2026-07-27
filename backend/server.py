@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import requests
+import boto3
 from io import BytesIO
 import json
 from reportlab.lib import colors
@@ -34,11 +35,12 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Object Storage Setup
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
-APP_NAME = "agfdata"
-storage_key = None
+# S3 / Object Storage Setup
+BUCKET_NAME = os.environ.get("BUCKET", "")
+S3_REGION = os.environ.get("REGION", "")
+S3_ENDPOINT = os.environ.get("ENDPOINT", "")
+S3_ACCESS_KEY = os.environ.get("ACCESS_KEY_ID", "")
+S3_SECRET_KEY = os.environ.get("SECRET_ACCESS_KEY", "")
 
 # JWT Configuration
 JWT_SECRET = os.environ.get("JWT_SECRET", "agfdata-secret-key-change-in-production")
@@ -142,45 +144,50 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # ===== Object Storage Functions =====
-def init_storage():
-    global storage_key
-    if storage_key:
-        return storage_key
-    if not EMERGENT_KEY:
+def get_s3_client():
+    """Get S3 client configured for Railway bucket"""
+    if not all([BUCKET_NAME, S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY]):
         raise HTTPException(
             status_code=503,
-            detail="File storage is not configured (EMERGENT_LLM_KEY missing). File uploads/downloads are unavailable."
+            detail="File storage is not configured. File uploads/downloads are unavailable."
         )
+
+    return boto3.client(
+        "s3",
+        region_name=S3_REGION,
+        endpoint_url=S3_ENDPOINT,
+        aws_access_key_id=S3_ACCESS_KEY,
+        aws_secret_access_key=S3_SECRET_KEY,
+    )
+
+def put_object(key: str, data: bytes, content_type: str) -> dict:
+    """Upload file to S3 bucket"""
     try:
-        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-        resp.raise_for_status()
-        storage_key = resp.json()["storage_key"]
-        logger.info("Storage initialized successfully")
-        return storage_key
+        s3 = get_s3_client()
+        s3.put_object(
+            Bucket=BUCKET_NAME,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+        )
+        return {"path": key, "size": len(data)}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-        raise HTTPException(status_code=503, detail="File storage is currently unavailable. Please try again later.")
+        logger.error(f"S3 upload failed: {e}")
+        raise HTTPException(status_code=503, detail="File upload failed. Please try again.")
 
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data, timeout=120
-    )
-    resp.raise_for_status()
-    return resp.json()
-
-def get_object(path: str) -> tuple[bytes, str]:
-    key = init_storage()
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key}, timeout=60
-    )
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+def get_object(key: str) -> tuple[bytes, str]:
+    """Download file from S3 bucket"""
+    try:
+        s3 = get_s3_client()
+        response = s3.get_object(Bucket=BUCKET_NAME, Key=key)
+        return response["Body"].read(), response.get("ContentType", "application/octet-stream")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"S3 download failed: {e}")
+        raise HTTPException(status_code=404, detail="File not found")
 
 # ===== Auth Functions =====
 def hash_password(password: str) -> str:
@@ -323,15 +330,16 @@ PREV_STAGE = {"grinda": None, "servis": "grinda", "finishing": "servis", "packin
 @app.on_event("startup")
 async def startup_event():
     try:
-        # Initialize storage (non-critical: don't block startup if this fails)
+        # Test S3 connection
         try:
-            if not EMERGENT_KEY:
-                logger.warning("EMERGENT_LLM_KEY not set. Skipping storage init; file uploads will be disabled.")
+            if all([BUCKET_NAME, S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY]):
+                s3 = get_s3_client()
+                s3.head_bucket(Bucket=BUCKET_NAME)
+                logger.info("S3 bucket connection successful")
             else:
-                init_storage()
-                logger.info("Storage initialized")
+                logger.warning("S3 bucket credentials not configured. File uploads will be disabled.")
         except Exception as e:
-            logger.warning(f"Storage init failed, continuing startup without storage: {e}")
+            logger.warning(f"S3 bucket connection failed: {e}. File uploads will be disabled.")
         
         # Create indexes
         await db.users.create_index("email", unique=True)
@@ -554,18 +562,11 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     if user["role"] not in ["admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    global storage_key
-    if not EMERGENT_KEY or not storage_key:
-        raise HTTPException(
-            status_code=400,
-            detail="File storage is not configured. File upload is disabled. Set EMERGENT_LLM_KEY to enable uploads."
-        )
-    
     ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
-    path = f"{APP_NAME}/uploads/{uuid.uuid4()}.{ext}"
+    key = f"agfdata/uploads/{uuid.uuid4()}.{ext}"  # S3 key path
     data = await file.read()
     
-    result = put_object(path, data, file.content_type or "application/octet-stream")
+    result = put_object(key, data, file.content_type or "application/octet-stream")
     
     await db.files.insert_one({
         "id": str(uuid.uuid4()),
