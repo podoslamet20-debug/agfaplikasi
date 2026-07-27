@@ -15,9 +15,17 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Restore token from localStorage if it exists
+        const token = localStorage.getItem("access_token");
+        if (token) {
+          axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        }
         const { data } = await axios.get(`${API}/auth/me`);
         setUser(data);
       } catch {
+        // Clear invalid token
+        localStorage.removeItem("access_token");
+        delete axios.defaults.headers.common["Authorization"];
         setUser(null);
       } finally {
         setLoading(false);
@@ -28,12 +36,19 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await axios.post(`${API}/auth/login`, { email, password });
+    if (data.access_token) {
+      localStorage.setItem("access_token", data.access_token);
+      // Set the token in axios default header
+      axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
+    }
     setUser(data);
     return data;
   };
 
   const logout = async () => {
     await axios.post(`${API}/auth/logout`);
+    localStorage.removeItem("access_token");
+    delete axios.defaults.headers.common["Authorization"];
     setUser(null);
   };
 
