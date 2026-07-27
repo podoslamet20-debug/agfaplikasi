@@ -2277,10 +2277,15 @@ async def purge_activity_log(before: Optional[str] = None, user: dict = Depends(
 # Include router
 app.include_router(api_router)
 
+allow_origins = os.environ.get(
+    "CORS_ORIGINS",
+    "https://agf-frontend-agf.up.railway.app,http://localhost:3000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[origin.strip() for origin in allow_origins],
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
