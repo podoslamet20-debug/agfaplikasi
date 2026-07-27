@@ -14,6 +14,8 @@ from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import requests
+import tempfile
+import shutil
 from io import BytesIO
 import json
 from reportlab.lib import colors
@@ -34,11 +36,10 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Object Storage Setup
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+# Object Storage Setup (local filesystem storage - no external dependency)
 APP_NAME = "agfdata"
-storage_key = None
+UPLOAD_DIR = Path(tempfile.gettempdir()) / "agf_uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 # JWT Configuration
 JWT_SECRET = os.environ.get("JWT_SECRET", "agfdata-secret-key-change-in-production")
@@ -141,46 +142,24 @@ async def activity_log_middleware(request: Request, call_next):
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# ===== Object Storage Functions =====
+# ===== Object Storage Functions (local filesystem) =====
 def init_storage():
-    global storage_key
-    if storage_key:
-        return storage_key
-    if not EMERGENT_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="File storage is not configured (EMERGENT_LLM_KEY missing). File uploads/downloads are unavailable."
-        )
-    try:
-        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-        resp.raise_for_status()
-        storage_key = resp.json()["storage_key"]
-        logger.info("Storage initialized successfully")
-        return storage_key
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-        raise HTTPException(status_code=503, detail="File storage is currently unavailable. Please try again later.")
+    # No-op for local storage. Kept for backward compatibility with callers.
+    return True
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data, timeout=120
-    )
-    resp.raise_for_status()
-    return resp.json()
+    # Save to local temp directory
+    file_path = UPLOAD_DIR / path.replace("/", "_")
+    file_path.parent.mkdir(exist_ok=True, parents=True)
+    file_path.write_bytes(data)
+    return {"path": path, "size": len(data)}
 
 def get_object(path: str) -> tuple[bytes, str]:
-    key = init_storage()
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key}, timeout=60
-    )
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+    # Read from local temp directory
+    file_path = UPLOAD_DIR / path.replace("/", "_")
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+    return file_path.read_bytes(), "application/octet-stream"
 
 # ===== Auth Functions =====
 def hash_password(password: str) -> str:
@@ -323,13 +302,10 @@ PREV_STAGE = {"grinda": None, "servis": "grinda", "finishing": "servis", "packin
 @app.on_event("startup")
 async def startup_event():
     try:
-        # Initialize storage (non-critical: don't block startup if this fails)
+        # Initialize storage (local filesystem, non-critical: don't block startup if this fails)
         try:
-            if not EMERGENT_KEY:
-                logger.warning("EMERGENT_LLM_KEY not set. Skipping storage init; file uploads will be disabled.")
-            else:
-                init_storage()
-                logger.info("Storage initialized")
+            init_storage()
+            logger.info(f"Local file storage initialized at {UPLOAD_DIR}")
         except Exception as e:
             logger.warning(f"Storage init failed, continuing startup without storage: {e}")
         
