@@ -4,8 +4,6 @@ import axios from "axios";
 const BACKEND_URL = process.env.REACT_APP_API_URL;
 const API = `${BACKEND_URL}/api`;
 
-axios.defaults.withCredentials = true;
-
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
