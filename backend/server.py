@@ -49,15 +49,15 @@ JWT_ALGORITHM = "HS256"
 # Create the main app
 app = FastAPI()
 
-# Configure CORS - must be added FIRST, before other middleware
+# Configure CORS - must be added FIRST (before other middleware), so that
+# Starlette's reverse execution order makes it run LAST (closest to the
+# routes). This ensures OPTIONS preflight requests are intercepted by
+# CORSMiddleware before activity_log_middleware or any other middleware
+# can reject them.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8000",
-        os.environ.get("FRONTEND_URL", "https://agf-frontend-agf-8269.up.railway.app"),
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
