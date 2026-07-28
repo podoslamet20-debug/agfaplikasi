@@ -48,6 +48,20 @@ JWT_ALGORITHM = "HS256"
 
 # Create the main app
 app = FastAPI()
+
+# Configure CORS - must be added FIRST, before other middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        os.environ.get("FRONTEND_URL", "https://agf-frontend-agf-8269.up.railway.app"),
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 api_router = APIRouter(prefix="/api")
 
 # ===== Activity Log Middleware =====
@@ -2288,19 +2302,6 @@ async def purge_activity_log(before: Optional[str] = None, user: dict = Depends(
 
 # Include router
 app.include_router(api_router)
-
-allow_origins = os.environ.get(
-    "CORS_ORIGINS",
-    "https://agf-frontend-agf.up.railway.app,http://localhost:3000"
-).split(",")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[origin.strip() for origin in allow_origins],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
