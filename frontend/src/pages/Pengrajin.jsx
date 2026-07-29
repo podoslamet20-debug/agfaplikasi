@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import { Card } from "@/components/ui/card";
@@ -21,16 +21,14 @@ export default function Pengrajin() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
 
-  const load = useCallback(async () => {
+  const load = async () => {
     try {
       const { data } = await axios.get(`${API}/pengrajin`);
       setItems(data);
     } catch (e) { console.error(e); }
-  }, [API]);
+  };
 
-  useEffect(() => { 
-    load(); 
-  }, [load]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const submit = async () => {
     if (!form.nama.trim()) return toast.error("Nama pengrajin wajib diisi");
