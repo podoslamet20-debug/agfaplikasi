@@ -28,7 +28,7 @@ export default function Pengrajin() {
     } catch (e) { console.error(e); }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { load(); }, [load]);
 
   const submit = async () => {
     if (!form.nama.trim()) return toast.error("Nama pengrajin wajib diisi");
