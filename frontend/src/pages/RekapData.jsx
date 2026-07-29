@@ -70,11 +70,11 @@ export default function RekapData() {
     return [...arr].sort((a, b) => ((a[key] || "").toLowerCase().localeCompare((b[key] || "").toLowerCase())));
   };
 
-  const sortedPO = useMemo(() => sortRows(rekapPO, "nama_barang"), [rekapPO, sortAZ]);
-  const sortedBarang = useMemo(() => sortRows(rekapBarang, "nama_barang"), [rekapBarang, sortAZ]);
-  const sortedProgres = useMemo(() => sortRows(rekapProgres, "nama_barang"), [rekapProgres, sortAZ]);
-  const sortedPengrajin = useMemo(() => sortRows(rekapPengrajin, "pengrajin"), [rekapPengrajin, sortAZ]);
-  const sortedStaffing = useMemo(() => sortRows(staffingSummary, "nama_barang"), [staffingSummary, sortAZ]);
+  const sortedPO = useMemo(() => sortRows(rekapPO, "nama_barang"), [rekapPO, sortAZ, sortRows]);
+  const sortedBarang = useMemo(() => sortRows(rekapBarang, "nama_barang"), [rekapBarang, sortAZ, sortRows]);
+  const sortedProgres = useMemo(() => sortRows(rekapProgres, "nama_barang"), [rekapProgres, sortAZ, sortRows]);
+  const sortedPengrajin = useMemo(() => sortRows(rekapPengrajin, "pengrajin"), [rekapPengrajin, sortAZ, sortRows]);
+  const sortedStaffing = useMemo(() => sortRows(staffingSummary, "nama_barang"), [staffingSummary, sortAZ, sortRows]);
 
   const resetFilters = () => { setFilterNoPO("all"); setFilterBarang("all"); setFilterPengrajin("all"); setFilterDateFrom(""); setFilterDateTo(""); };
 

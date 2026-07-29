@@ -31,10 +31,9 @@ export default function DatabaseBarang() {
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     load();
-  }, [search]);
+  }, [search, load]);
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
