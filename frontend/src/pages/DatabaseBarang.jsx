@@ -29,11 +29,11 @@ export default function DatabaseBarang() {
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  }, [API, search]);
 
   useEffect(() => {
     load();
-  }, [search]);
+  }, [search, load]);
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];

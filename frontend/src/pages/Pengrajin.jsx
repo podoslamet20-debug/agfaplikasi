@@ -26,9 +26,9 @@ export default function Pengrajin() {
       const { data } = await axios.get(`${API}/pengrajin`);
       setItems(data);
     } catch (e) { console.error(e); }
-  }, []);
+  }, [API]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const submit = async () => {
     if (!form.nama.trim()) return toast.error("Nama pengrajin wajib diisi");
