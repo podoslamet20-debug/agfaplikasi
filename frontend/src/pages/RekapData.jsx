@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import { Card } from "@/components/ui/card";
@@ -65,10 +65,10 @@ export default function RekapData() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [filterNoPO, filterPengrajin, filterBarang, filterDateFrom, filterDateTo]);
 
-  const sortRows = (arr, key) => {
+  const sortRows = useCallback((arr, key) => {
     if (!sortAZ) return arr;
     return [...arr].sort((a, b) => ((a[key] || "").toLowerCase().localeCompare((b[key] || "").toLowerCase())));
-  };
+  }, [sortAZ]);
 
   const sortedPO = useMemo(() => sortRows(rekapPO, "nama_barang"), [rekapPO, sortRows]);
   const sortedBarang = useMemo(() => sortRows(rekapBarang, "nama_barang"), [rekapBarang, sortRows]);
