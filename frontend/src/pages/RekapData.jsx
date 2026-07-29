@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "axios";
 import { Card } from "@/components/ui/card";
@@ -65,16 +65,16 @@ export default function RekapData() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [filterNoPO, filterPengrajin, filterBarang, filterDateFrom, filterDateTo]);
 
-  const sortRows = useCallback((arr, key) => {
+  const sortRows = (arr, key) => {
     if (!sortAZ) return arr;
     return [...arr].sort((a, b) => ((a[key] || "").toLowerCase().localeCompare((b[key] || "").toLowerCase())));
-  }, [sortAZ]);
+  };
 
-  const sortedPO = useMemo(() => sortRows(rekapPO, "nama_barang"), [rekapPO, sortRows]);
-  const sortedBarang = useMemo(() => sortRows(rekapBarang, "nama_barang"), [rekapBarang, sortRows]);
-  const sortedProgres = useMemo(() => sortRows(rekapProgres, "nama_barang"), [rekapProgres, sortRows]);
-  const sortedPengrajin = useMemo(() => sortRows(rekapPengrajin, "pengrajin"), [rekapPengrajin, sortRows]);
-  const sortedStaffing = useMemo(() => sortRows(staffingSummary, "nama_barang"), [staffingSummary, sortRows]);
+  const sortedPO = useMemo(() => sortRows(rekapPO, "nama_barang"), [rekapPO, sortAZ]);
+  const sortedBarang = useMemo(() => sortRows(rekapBarang, "nama_barang"), [rekapBarang, sortAZ]);
+  const sortedProgres = useMemo(() => sortRows(rekapProgres, "nama_barang"), [rekapProgres, sortAZ]);
+  const sortedPengrajin = useMemo(() => sortRows(rekapPengrajin, "pengrajin"), [rekapPengrajin, sortAZ]);
+  const sortedStaffing = useMemo(() => sortRows(staffingSummary, "nama_barang"), [staffingSummary, sortAZ]);
 
   const resetFilters = () => { setFilterNoPO("all"); setFilterBarang("all"); setFilterPengrajin("all"); setFilterDateFrom(""); setFilterDateTo(""); };
 
